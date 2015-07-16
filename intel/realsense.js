@@ -9,13 +9,14 @@ accordance with the terms of that agreement
 *******************************************************************************/
 var intel = intel || {};
 
-// SDK namespaces
-intel._namespace("intel.realsense");
-intel._namespace("intel.realsense.face");
-intel._namespace("intel.realsense.hand");
-intel._namespace("intel.realsense.blob");
-intel._namespace("intel.realsense.speech");
-
+if (intel.realsense == undefined) {
+	// SDK namespaces
+	intel._namespace("intel.realsense");
+	intel._namespace("intel.realsense.face");
+	intel._namespace("intel.realsense.hand");
+	intel._namespace("intel.realsense.blob");
+	intel._namespace("intel.realsense.speech");
+}
 /**
     For web service versioning control
     1. Application may run with a previous version web service
@@ -132,7 +133,7 @@ intel.realsense.ImplSubgroup = {
 };
 
 /**
-    This is the main object for the Intel® RealSense™ SDK pipeline.
+    This is the main object for the IntelÂ® RealSenseâ„¢ SDK pipeline.
     Control the pipeline execution with this interface.
 */
 intel.realsense.SenseManager = function (instance, session, captureManager) {
