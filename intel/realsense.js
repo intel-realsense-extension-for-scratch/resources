@@ -87,6 +87,7 @@ intel.realsense.Status = {
     STATUS_POWER_PROVIDER_NOT_EXISTS: -704,
     STATUS_CAPTURE_CONFIG_ALREADY_SET: -801,    /** parameter cannot be changed since configuration for capturing has been already set */
     STATUS_COORDINATE_SYSTEM_CONFLICT: -802,	/** Mismatched coordinate system between modules */
+    STATUS_WEB_DISCONNECTED: -901,               /** lost connection to web service, JS app needs restart */
     STATUS_TIME_GAP: 101,                       /* time gap in time stamps */
     STATUS_PARAM_INPLACE: 102,                  /* the same parameters already defined */
     STATUS_DATA_NOT_CHANGED: 103,	            /* Data not changed (no new data available)*/
@@ -163,7 +164,7 @@ intel.realsense.ImplSubgroup = {
 };
 
 /**
-    This is the main object for the IntelÂ® RealSenseâ„¢ SDK pipeline.
+    This is the main object for the Intel® RealSense™ SDK pipeline.
     Control the pipeline execution with this interface.
 */
 intel.realsense.SenseManager = function (instance, session, captureManager) {
@@ -180,23 +181,24 @@ intel.realsense.SenseManager = function (instance, session, captureManager) {
     this._sessionStopped = true;   
    // this._hbIntervalID = undefined;
     this._modules = {};
+    this._speechModule = null; 
 
-    /** OnConnect callback
+    /** onDeviceConnected callback
         sender: device object 
         which callback is trigger, device information can be accessed with device.deviceInfo 
     */
-    this.onConnect = function (sender, connected) { };
+    this.onDeviceConnected = function (sender, connected) { };
 
     /** sender: module */
-    this.onStatus = function (sender, status) { };
+    this.onStatusChanged = function (sender, status) { };
    
     /** Initialize the SenseManager pipeline for streaming with callbacks. 
         The application must enable algorithm modules before calling this function.
         @return a Promise object
     */
     this.init = function () {
-        intel.realsense.connection.subscribe_callback("PXCMSenseManager_OnConnect", this, this._onConnect);
-        intel.realsense.connection.subscribe_callback("PXCMSenseManager_OnStatus", this, this._onStatus);
+        intel.realsense.connection.subscribe_callback("PXCMSenseManager_OnConnect", this, this._onDeviceConnected);
+        intel.realsense.connection.subscribe_callback("PXCMSenseManager_OnStatus", this, this._onStatusChanged);
        
         var initPromise = intel.realsense.connection.call(self.instance, 'PXCMSenseManager_Init', { 'handler': true, 'onModuleProcessedFrame': true, 'onConnect': true, 'onStatus': true }, 5000).then(function () {
             return intel.realsense.connection.call(self.captureManager.instance, 'PXCMCaptureManager_QueryDevice').then(function (deviceResult) {    
@@ -237,24 +239,40 @@ intel.realsense.SenseManager = function (instance, session, captureManager) {
         return releasePromise;
     };
 
-    this._onConnect = function (data) {
+    this._onDeviceConnected = function (data) {
         var device = null;
         var connected = false;
         if (data.device != undefined && data.device.value != undefined) {
             device = new intel.realsense.Capture.Device(data.device.value, data.dinfo);
             connected = data.connected;
         }
-        self.onConnect(device, connected);
+        self.onDeviceConnected(device, connected);
     };
 
-    this._onStatus = function (data) {
+    this._onStatusChanged = function (data) {
         var module;
         if (data.mid == 0)
             module = this;
         else
             module = self._modules[data.mid];
-        self.onStatus(module, data.sts);
+        self.onStatusChanged(module, data.sts);
     };
+
+    this.onClose = function () {
+        if (self._sessionStopped == false) {
+            self.onStatusChanged(this, intel.realsense.Status.STATUS_WEB_DISCONNECTED);
+
+            if (self._speechModule != null && self._speechModule.onAlert != null) {
+                var result = {};
+                result.data = {};
+                result.data.label = intel.realsense.speech.AlertType.ALERT_WEB_DISCONNECTED;
+                result.data.name = "ALERT_WEB_DISCONNECTED";
+                self._speechModule.onAlert(self._speechModule, result);
+            }
+        }
+        self._sessionStopped = true;
+        intel.realsense.connection = null;
+    }
 
     this._enableModule = function (mid) {
         var res;
@@ -314,6 +332,7 @@ intel.realsense.SenseManager.createInstance = function () {
         var captureMgr = new intel.realsense.CaptureManager(result.captureManager_instance.value);
         var sess = new intel.realsense.Session(result.session_instance.value);
         var sense = new intel.realsense.SenseManager(result.instance.value, sess, captureMgr);
+        intel.realsense.connection.onclose = sense.onClose;
         return sense;
     });
 };
@@ -366,7 +385,7 @@ intel.realsense.Capture.Device = function (instance, deviceInfo) {
     /**
         @brief  deviceInfo contains such device related information as device model.
         @brief  It is available either after return of SenseManager.init() call, or
-        @brief  When OnConnect callback is triggered
+        @brief  When onDeviceConnected callback is triggered
     */
     this.deviceInfo = deviceInfo;
 };
@@ -618,7 +637,7 @@ intel.realsense.hand.HandModule._CUID = 1313751368;
 
 
 intel.realsense.hand.HandModule.prototype.pause = function (pause) {
-    return this.sm._pauseModule(intel.realsense.face.HandModule._CUID, pause);
+    return this.sm._pauseModule(intel.realsense.hand.HandModule._CUID, pause);
 };
 
 /** default hand data callback which can be overwritten by JS application */
@@ -656,7 +675,7 @@ intel.realsense.hand.HandData = function (data) {
     this._handsData = data;
 
     this.numberOfHands = 0;
-    if (this._handsData.hands !== 'undefined')
+    if (this._handsData.hands !== undefined)
         this.numberOfHands = this._handsData.hands.length;
 
     this.firedGestureData = data.gestures;
@@ -962,17 +981,17 @@ intel.realsense.speech.SpeechRecognition = function (instance) {
     var self = this;
     var _profiles = null;
     var _profiles_promise = null;
-    this.onRecognition = null;
-    this.onAlert = null;
+    this.onSpeechRecognized = null;
+    this.onAlertFired = null;
 
-    var _onRecognition = function (data) {
-        if (onRecognition != null)
-            onRecognition(this, data);
-};
+    this._onSpeechRecognized = function (data) {
+        if (self.onSpeechRecognized != null)
+            self.onSpeechRecognized(this, data);
+    };
 
-    var _onAlert = function (data) {
-        if (onAlert != null)
-            onAlert(this, data);
+    this._onAlertFired = function (data) {
+        if (self.onAlertFired != null)
+            self.onAlertFired(this, data);
     };
 };
 
@@ -1027,7 +1046,7 @@ intel.realsense.speech.SpeechRecognition.prototype.setProfile = function (pinfo)
 intel.realsense.speech.SpeechRecognition.prototype.buildGrammarFromStringList = function (gid, cmds, labels) {
     if (gid == 0) {
         return new Promise(function (resolve, reject) {
-            reject({ 'status': STATUS_FEATURE_NOT_SUPPORT });
+            reject({ 'sts': STATUS_FEATURE_NOT_SUPPORT });
         });
     }
     return intel.realsense.connection.call(this.instance, 'PXCMSpeechRecognition_BuildGrammarFromStringList', { 'gid': gid, 'cmds': cmds, 'labels': labels });
@@ -1041,7 +1060,7 @@ intel.realsense.speech.SpeechRecognition.prototype.buildGrammarFromStringList = 
 intel.realsense.speech.SpeechRecognition.prototype.releaseGrammar = function (gid) {
     if (gid == 0) {
         return new Promise(function (resolve, reject) {
-            reject({ 'status': STATUS_FEATURE_NOT_SUPPORT });
+            reject({ 'sts': STATUS_FEATURE_NOT_SUPPORT });
         });
     }
     return intel.realsense.connection.call(this.instance, 'PXCMSpeechRecognition_ReleaseGrammar', { 'gid': gid });
@@ -1055,7 +1074,7 @@ intel.realsense.speech.SpeechRecognition.prototype.releaseGrammar = function (gi
 intel.realsense.speech.SpeechRecognition.prototype.setGrammar = function (gid) {
     if (gid == 0) {
         return new Promise(function (resolve, reject) {
-            reject({ 'status': STATUS_FEATURE_NOT_SUPPORT });
+            reject({ 'sts': STATUS_FEATURE_NOT_SUPPORT });
         });
     }
     return intel.realsense.connection.call(this.instance, 'PXCMSpeechRecognition_SetGrammar', { 'gid': gid }, 30000);
@@ -1068,12 +1087,12 @@ intel.realsense.speech.SpeechRecognition.prototype.setGrammar = function (gid) {
 
 */
 intel.realsense.speech.SpeechRecognition.prototype.startRec = function () {
-    if (this.onRecognition !== 'undefined' && this.onRecognition != null) {
-        intel.realsense.connection.subscribe_callback("PXCMSpeechRecognition_OnRecognition", this, this.onRecognition);
+    if (this.onSpeechRecognized !== 'undefined' && this.onSpeechRecognized != null) {
+        intel.realsense.connection.subscribe_callback("PXCMSpeechRecognition_OnRecognition", this, this._onSpeechRecognized);
     }
 
-    if (this.onAlert !== 'undefined' && this.onAlert != null) {
-        intel.realsense.connection.subscribe_callback("PXCMSpeechRecognition_OnAlert", this, this.onAlert);
+    if (this.onAlertFired !== 'undefined' && this.onAlertFired != null) {
+        intel.realsense.connection.subscribe_callback("PXCMSpeechRecognition_OnAlert", this, this._onAlertFired);
     }
 
     // Loading language model may take several seconds: thus set 20 seconds as timeout
@@ -1095,7 +1114,9 @@ intel.realsense.speech.SpeechRecognition.prototype.release = function () {
 intel.realsense.speech.SpeechRecognition._CUID = -2146187993;
 
 intel.realsense.speech.SpeechRecognition.createInstance = function (sense) {
-    return sense.session._createImpl(intel.realsense.speech.SpeechRecognition._CUID);
+    var sr = sense.session._createImpl(intel.realsense.speech.SpeechRecognition._CUID);
+    sense._speechModule = sr;
+    return sr;
 };
 
 intel.realsense.speech.AlertType = {
@@ -1106,7 +1127,8 @@ intel.realsense.speech.AlertType = {
     ALERT_SPEECH_BEGIN: 0x00010,            /** The begining of a speech. */
     ALERT_SPEECH_END: 0x00020,              /** The end of a speech. */
     ALERT_RECOGNITION_ABORTED: 0x00040,     /** The recognition is aborted due to device lost, engine error, etc. */
-    ALERT_RECOGNITION_END: 0x00080          /** The recognition is completed. The audio source no longer provides data. */
+    ALERT_RECOGNITION_END: 0x00080,         /** The recognition is completed. The audio source no longer provides data. */
+    ALERT_WEB_DISCONNECTED: 0x10000         /** Lose connection to web service */
 };
 
 intel.realsense.speech.LanguageType = {
@@ -1535,9 +1557,8 @@ ITAWSConnection.prototype.setWSConstructor = function (fn) {
     else {
         self.wsConstructor = (typeof WebSocket === "function") ? WebSocket : null;
     }
-
-
 }
+
 /**
  * Set user supplied listeners to be called when communication events occur
  * @param listeners
@@ -1766,11 +1787,14 @@ function RealSenseConnection(major) {
     this.request_id = 0;    // Increment on every message
     this.callbacks = {};    // Callbacks from server
     this.binary_data = null;// Data received in last binary message
+    this._connected = false; 
 
     this.close = function () {
         if (this.websocket !== 'undefined' && this.websocket.connection != 'undefined' && this.websocket.connection.ws != 'undefined') {
             this.websocket.connection.ws.close(request_url);
         }
+        this._connected = false;
+        this.onclose();
     }
 
     this.call = function (instance, method, params, timeout) {
@@ -1792,7 +1816,16 @@ function RealSenseConnection(major) {
                     "onerror": this.onerror,
                     "onclose": this.onclose
                 });
+            this._connected = true;
             this.websocket.binaryType = "arraybuffer"; // Receive binary messages as ArrayBuffer
+        }
+
+        // send a rejected promise if the connection is already closed
+        if (this._connected == false) {
+            var rejectPromise = new Promise(function (resolve, reject) {
+                reject({ 'sts': intel.realsense.Status.STATUS_WEB_DISCONNECTED});
+            });
+            return rejectPromise;
         }
 
         //send a heartbeat message here
