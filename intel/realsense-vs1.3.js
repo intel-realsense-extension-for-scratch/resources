@@ -1327,7 +1327,7 @@ intel.realsense.SenseManager.detectPlatform = function (components, cameras) {
     try {
         /* TODO: Check with Pranav if we need to use CORS on IE/Firefox. */
         xhr = new XMLHttpRequest();
-        xhr.open("GET", "https://192.55.233.1:5713/capabilityproxy/capabilities", true);
+        xhr.open("GET", "https://192.55.233.1/capabilityproxy/capabilities", true);
         xhr.onload = onReady;
         xhr.timeout = 5000;
         xhr.ontimeout = onerror;
@@ -1762,7 +1762,7 @@ intel.rest = function (method, url, options) {
 };
 
 GetResourceAccessToken = function (options, successCB, errorCB) {
-    var url = "https://192.55.233.1:5713/resourceaccesstoken";
+    var url = "https://192.55.233.1/resourceaccesstoken";
     var restRequest = intel.rest("POST", url, options);
     restRequest._execute(successCB, errorCB);
 };
@@ -1806,7 +1806,7 @@ function RealSenseConnection(major) {
         if (this.websocket === null || this.wssession === null) { // Create WebSocket if not created or closed
             //this.websocket = new WebSocket(this.socketUrl);
             console.log('No websocket. Create one.');
-            this.websocket = new ITAWS("wss://192.55.233.1:5713/", {
+            this.websocket = new ITAWS("wss://192.55.233.1/", {
                 //send rat to bypass pairing
                 //rat: ".eyJhcGkta2V5IjoiamEyc2hhNzg4a3l4dHI4Nnk3OGhqZTlrdDUyNHpkYnVqZDY4IiwiY2FwIjpbInJlYWxzZW5zZS92MSJdLCJleHBjciI6MTQyMTI3NjM0OTk2NCwiZXhwbHAiOjE0NTI4MDY5NDk5NjQsImhlYWQiOiJJbnRlbCBDb3JwLCB2MiIsImlhdCI6MTQyMTI3MDk0OTk2NCwianRpIjoibmhEYnhZZUQiLCJub25jZSI6IkMyR0M3b05Vdi9JN1c0R1VMdmdneU11bFdYQlFPK1kzc1Z6VGM0STAraTA9IiwidGFyY3AiOlsiVFplZFRhQmJsVzhnalEva2t1aFcvcm1QK1BrREgwT3UrUGZBZ2tnck9mR2NIRnM1OWluM3RBTElEMzhkU3BOYjdrNWxnLzloM0EzZVZvYyt1amtyTEVXUEczdWgzZkZEZGwvZGVkZmoyaEFUc0RNY2NtWHp5VVZDOXFkWWZoY1pNeGlBYVYvRG53WkRoYzZvWDVINnJKY2ZRRzUwSXdnOElOTVJBdHNZWWxZV3greWxXbzYxUEJRVWpSazZFZ3BYS2QrYlFMQ2dMTXhtV2l4SkxSV1BqSHhnZ1Q3TGdtZTdpNEU5RlB0M0hmR3ZpN2RlWHFhaUJkeG5mbitUZ2pUWXorNFdDc3FDVGlIa1Myd2lHejRUdlA3TjNITU1JRWJuRW03R1ZpcFBJVm00MHgzOS9EajRlbmhORWVwTTVKeDN2SzFZZUQrQWg0NGNZYmlMdFRkK2N3PT0iXSwidGFyY3IiOlsiN2ExYjc0OWZkMjFjZWM2OWQwNmE1YTFkNGE4ZmJmOTAzNGMzNzg1YzQ0ZGMwZDkyMTk0ZjEwM2JjNzAzNmY1NmFkYjdjNDU2YmI2MDM2YWQ0NjY2MzYyMzE5MmVlN2JjNzc3NzViNThlNjhkNDFkMDUxMjhkZjkwZmY2N2Q0MjJlZWMzMmUyNWQxNDU4ZTZmMGY4NzkwNzllYTM1ODE2NWVlNTUwZjMwODI3ZWFkNDAzMmRkMDAyZjJkMTMwM2Y4OGI2ZjIwNjU2M2IyNTA5NjgxMDVlNDczMmUyYTMwNTNiNDFhZDA0MmQxOWQ1NDcwMWUyODUyYzdjODEwM2NkZmVlZGRkYTMxZTE3Yjg3MDY5NmE0YzVlNDcwZTk3YTM3ZDgzOTNkNGQyZDE1YTYwNjY4M2U1NmE2MzZmZjJhNjdlODY3NGNkZTViMmI4YzAxODYxNWZmZDUwOGM2YTEzNjkzNDhmOTFjZDBmNDllY2U5NjE0NTk0MTZhNzdlY2Y3MTcxMmI1OTgyN2FhODBhOWI1NGNlMGI3NzFiN2ExMDkzYWZiMDU2ZmNjMTVmNTIxOTEwNWFkNzk2NGUxYmRhMjEyZGU5NDEwMzFlMzk1ZDFiYTE3ZGE0ZTk0YmI5OTlhMDBmNWI0NTI5MGQwZmE2YWQ3OTIxNDVkZmZkNzIyMjAiXX0=."
             },
