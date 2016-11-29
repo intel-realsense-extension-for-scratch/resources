@@ -172,7 +172,7 @@ intel.realsense.ImplSubgroup = {
 };
 
 /**
-    This is the main object for the Intel® RealSense™ SDK pipeline.
+    This is the main object for the IntelÂ® RealSenseÂ™ SDK pipeline.
     Control the pipeline execution with this interface.
 */
 intel.realsense.SenseManager = function (instance, session, captureManager) {
