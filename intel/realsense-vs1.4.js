@@ -2018,11 +2018,10 @@ function RealSenseConnection(major) {
         this.wssession = session;
 
         //subscribe to the realsense events
-        this.wssession.Subscribe(request_url, self.queue[i], function (response) { var t3 = performance.now(); console.log("Response time: " + (t3 - t2)); self._onmessage(response) });
+        this.wssession.Subscribe(request_url, self.queue[i], function (response) {   self._onmessage(response) });
 
         for (var i = 0; i < self.queue.length; i++) {
-            var t2 = performance.now();
-            this.wssession.SendRPC(request_url, self.queue[i], function (response) { var t3 = performance.now(); console.log("Response time: " + (t3 - t2)); self._onmessage(response) });
+            this.wssession.SendRPC(request_url, self.queue[i], function (response) {  self._onmessage(response) });
         }
         self.queue = [];
     }
@@ -2036,7 +2035,7 @@ function RealSenseConnection(major) {
 
         // Parse JSON
         var response;
-        console.log("received a response");        
+      //  console.log("received a response");        
         try {
             var t0 = performance.now();
             response = JSON.parse(event);
@@ -2047,8 +2046,8 @@ function RealSenseConnection(major) {
             return;
         }
 
-        console.log(response);
-        console.log("<<");
+       // console.log(response);
+       // console.log("<<");
 
         if (typeof response !== 'object') { console.log("Could not parse JSON"); return; }// error parsing JSON
 
